@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transcription Group Report</title>
+    <style>
+        body { font-family: 'Helvetica', sans-serif; }
+        h1 { text-align: center; }
+        .transcription { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Transcription Report</h1>
+    <p>Group Name: {{ group.group_name }}</p>
+    <p>Status: {{ group.status }}</p>
+    <p>Creation Date: {{ group.creation_date }}</p>
+    <hr>
+    <h2>Transcriptions</h2>
+    {% for audio in audios %}
+        <div class="transcription">
+            <h3>Audio: {{ audio.file_name }}</h3>
+            <p>{{ audio.modified_text }}</p>
+        </div>
+    {% endfor %}
+</body>
+</html>

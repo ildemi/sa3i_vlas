@@ -16,11 +16,12 @@ services:
     ports:
       - "8002:8002"
     volumes:
+      - ../:/app
       - media:/app/media
       - pyannote_models:/app/.cache/pyannote
       - hf_models:/app/.cache/huggingface
       - ollama_db:/root/.ollama
-      - ./entrypoint-django.sh:/app/docker/entrypoint-django.sh
+      #- ./entrypoint-django.sh:/app/docker/entrypoint-django.sh # Ya incluido en .:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,6 +121,7 @@ services:
       WHISPER_MODEL: ${WHISPER_MODEL}
 
     volumes:
+      - ../:/app
       - media:/app/media
       - pyannote_models:/app/.cache/pyannote
       - hf_models:/app/.cache/huggingface
