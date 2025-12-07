@@ -1,0 +1,190 @@
+volumes:
+  pyannote_models:
+  hf_models:
+  ollama_db:
+  pgdata:
+  media:
+
+services:
+  django:
+    image: saerco/vlas-server:0.1.0
+    build:
+      context: ..
+      dockerfile: docker/server/Dockerfile
+    entrypoint: ["/app/docker/entrypoint-django.sh"]
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8002"]
+    ports:
+      - "8002:8002"
+    volumes:
+      - media:/app/media
+      - pyannote_models:/app/.cache/pyannote
+      - hf_models:/app/.cache/huggingface
+      - ollama_db:/root/.ollama
+      - ./entrypoint-django.sh:/app/docker/entrypoint-django.sh
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DEBUG: ${DEBUG}
+      SECRET_KEY: ${SECRET_KEY}
+      HF_TOKEN: ${HF_TOKEN}
+      SITE_URL: ${SITE_URL}
+
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+
+      OLLAMA_HOST: ${OLLAMA_HOST}
+      OLLAMA_PORT: ${OLLAMA_PORT}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      WHISPER_MODEL: ${WHISPER_MODEL}
+
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD}
+
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  celery:
+    image: saerco/vlas-server:0.1.0
+    entrypoint: ["/app/docker/entrypoint-celery.sh"]
+    working_dir: /app
+    command: bash -c "export PYTHONPATH=/app && celery -A transcriptionAPI.celery worker --loglevel=info --pool=threads"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DEBUG: ${DEBUG}
+      SECRET_KEY: ${SECRET_KEY}
+      HF_TOKEN: ${HF_TOKEN}
+      SITE_URL: ${SITE_URL}
+
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+
+      OLLAMA_HOST: ${OLLAMA_HOST}
+      OLLAMA_PORT: ${OLLAMA_PORT}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      WHISPER_MODEL: ${WHISPER_MODEL}
+
+    volumes:
+      - media:/app/media
+      - pyannote_models:/app/.cache/pyannote
+      - hf_models:/app/.cache/huggingface
+      - ollama_db:/root/.ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  frontend:
+    image: saerco/vlas-client:0.1.0
+    build:
+      context: ..
+      dockerfile: docker/client/Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.6.0
+    command: ["serve"]
+    volumes:
+      - ollama_db:/root/.ollama
+    environment:
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "--version"]
+      interval: 10s
+      timeout: 10s
+      retries: 100
+      start_period: 10s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+
+  #ollama:
+  #  image: ollama/ollama:0.6.0
+  #  entrypoint: ["/app/docker/entrypoint-ollama.sh"]
+  #  command: ["ollama", "serve"]
+  #  volumes:
+  #    - ollama_db:/root/.ollama
+  #  environment:
+  #    - OLLAMA_MODEL=${OLLAMA_MODEL}
+  #  restart: unless-stopped
+  #  healthcheck:
+  #    test: "ollama --version && ollama ps || exit 1"
+  #    interval: 10s
+  #    timeout: 10s
+  #    retries: 100
+  #    start_period: 10s
+  #  deploy:
+  #    resources:
+  #      reservations:
+  #        devices:
+  #          - driver: nvidia
+  #            count: all
+  #            capabilities: [gpu]
+

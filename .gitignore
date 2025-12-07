@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.venv/
+venv/
+ENV/
+
+# Database
+db.sqlite3
+*.sqlite3
+
+# Docker
+docker/volumes/
+
+# Media and Static
+media/
+static/
+# Permitir pero ignorar contenido (opcional, pero mejor ignorar todo media local si es generado)
+# Excepto si queremos trackear carpetas vacías, pero por ahora ignoramos.
+
+# Editor directories
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Blobs and large files
+*.mp3
+*.wav
+*.mp4
+*.pdf
+# (Opcional: si queremos subir el código pero no los datos de prueba masivos)
+
+# VLAS specific
+*_segments/
+temp_*.wav
+processed_*.wav
+VLAS-master.zip
+
+
+.env*
+
