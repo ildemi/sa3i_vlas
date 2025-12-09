@@ -37,3 +37,9 @@ urlpatterns += [
     path('validate-transcription-group/<uuid:group_id>/', validate_transcription_group, name='validate_transcription_group'),
     path('group-validation-results/<uuid:group_id>', get_group_validation_results, name='get_group_validation_results'),
 ]
+
+# Endpoints de sistema
+urlpatterns += [
+    path('system/initialize/', initialize_system, name='initialize_system'),
+    path('system/status/', get_system_status, name='get_system_status'),
+]

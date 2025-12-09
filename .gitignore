@@ -46,3 +46,5 @@ VLAS-master.zip
 
 .env*
 
+# Cache and Models
+.cache/

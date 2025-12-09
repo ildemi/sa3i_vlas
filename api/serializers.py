@@ -1,6 +1,6 @@
 from django.conf import settings
 from rest_framework import serializers
-from models.models import TranscriptionGroup, AudioTranscription, SpeechSegment
+from api.models import TranscriptionGroup, AudioTranscription, SpeechSegment
 
 class TranscriptionGroupSerializer(serializers.ModelSerializer):
     class Meta:

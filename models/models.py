@@ -119,19 +119,4 @@ class Airline(models.Model):
     def __str__(self):
         return self.name
 
-class TranscriptionCorrection(models.Model):
-    """
-    Mapeo de errores comunes de transcripción a su forma correcta.
-    Ejemplo: 'rayan air' -> 'ryanair', 'fife' -> 'five'
-    """
-    incorrect_text = models.CharField(max_length=100, unique=True, help_text="Texto incorrecto (en minúsculas)")
-    correct_text = models.CharField(max_length=100, help_text="Texto corregido")
-    category = models.CharField(max_length=50, choices=[
-        ('airline', 'Aerolínea'),
-        ('number', 'Número'),
-        ('terminology', 'Terminología Aeronáutica'),
-        ('general', 'General')
-    ], default='general')
 
-    def __str__(self):
-        return f"{self.incorrect_text} -> {self.correct_text}"

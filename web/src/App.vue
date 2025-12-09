@@ -3,12 +3,15 @@ import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { RouterLink, RouterView } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useSystemStore } from '@/stores/system'
 import axios from 'axios'
+import SystemInitializer from '@/components/SystemInitializer.vue'
 
 const router = useRouter()
 const route = useRoute()
 
 const authStore = useAuthStore()
+const systemStore = useSystemStore()
 
 // Comprobar la validez del token en el montaje
 onMounted(() => {
@@ -37,6 +40,19 @@ const showNav = computed(() => {
 function logout() {
   authStore.logout()
 }
+
+function handleBadgeClick() {
+    const status = systemStore.modelStatus;
+    const msg = systemStore.statusMessage;
+                
+    if (status === 'error' || status === 'idle') {
+        if (confirm(`Estado: [${status.toUpperCase()}] - ${msg || 'Sin mensaje'}\n\n¿Forzar inicio de conexión ahora?`)) {
+            systemStore.startInitialization();
+        }
+    } else {
+        alert(`Estado del Sistema IA:\n[${status.toUpperCase()}]\n\nDetalle: ${msg}`);
+    }
+}
 </script>
 
 <template>
@@ -48,6 +64,18 @@ function logout() {
       <nav class="main-nav">
         <RouterLink to="/">Transcribe</RouterLink>
         <RouterLink to="/history">Saved Transcriptions</RouterLink>
+        
+        <!-- IA Status Indicator -->
+        <div 
+            class="ia-status-badge" 
+            :class="systemStore.modelStatus" 
+            :title="systemStore.statusMessage"
+            @click="handleBadgeClick"
+        >
+            <span class="status-dot"></span>
+            IA Status
+        </div>
+
         <RouterLink to="/account">Account</RouterLink>
         <RouterLink to="/wer">WER</RouterLink>
         <button @click="logout" class="nav-button logout-button">Logout</button>
@@ -58,6 +86,8 @@ function logout() {
   <main class="main-content">
     <RouterView />
   </main>
+  
+  <SystemInitializer />
 </template>
 
 <style scoped>
@@ -188,5 +218,65 @@ header {
   padding: 0 2rem;
   max-width: 100%;
   margin: 0 auto;
+}
+
+/* IA Status Styles */
+.ia-status-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    background-color: #f5f5f5;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #666;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    transition: all 0.3s ease;
+    border: 1px solid #e0e0e0;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #95a5a6; /* Idle/Gray */
+    box-shadow: 0 0 2px rgba(0,0,0,0.2);
+}
+
+/* Estados */
+.ia-status-badge.loading .status-dot {
+    background-color: #f39c12; /* Orange */
+    animation: pulse 1.5s infinite;
+}
+.ia-status-badge.loading {
+    border-color: #f39c12;
+    color: #d35400;
+}
+
+.ia-status-badge.ready .status-dot {
+    background-color: #2ecc71; /* Green */
+    box-shadow: 0 0 5px #2ecc71;
+}
+.ia-status-badge.ready {
+    background-color: rgba(46, 204, 113, 0.1);
+    border-color: #2ecc71;
+    color: #27ae60;
+}
+
+.ia-status-badge.error .status-dot {
+    background-color: #e74c3c; /* Red */
+}
+.ia-status-badge.error {
+    background-color: rgba(231, 76, 60, 0.1);
+    color: #c0392b;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
 }
 </style>

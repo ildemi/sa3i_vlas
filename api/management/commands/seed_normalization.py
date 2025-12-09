@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
-from models.models import Airline, TranscriptionCorrection
+from api.models import Airline, TranscriptionCorrection
 # Importamos desde el legacy para extraer los datos
-from api.transcriber.normalize_legacy import airlines_oaci_codes, airlines_iata_codes, airlines_icao_codes, text_similarities, nato_similarities, terminology_mapping
+from api.transcriber.normalize_legacy import airlines_oaci_codes, airlines_iata_codes, airlines_icao_codes, text_similarities, nato_similarities, terminology_mapping, nato_alphabet_mapping
 
 class Command(BaseCommand):
     help = 'Seeds the database with normalization data from legacy dictionaries'
@@ -67,6 +67,14 @@ class Command(BaseCommand):
              _, created = TranscriptionCorrection.objects.get_or_create(
                 incorrect_text=term.lower(),
                 defaults={'correct_text': expansion.lower(), 'category': 'terminology'}
+            )
+             if created: count_corrections += 1
+        
+        # NATO Alphabet & Numbers
+        for term, expansion in nato_alphabet_mapping.items():
+             _, created = TranscriptionCorrection.objects.get_or_create(
+                incorrect_text=term.lower(),
+                defaults={'correct_text': expansion, 'category': 'nato_alphabet'}
             )
              if created: count_corrections += 1
 

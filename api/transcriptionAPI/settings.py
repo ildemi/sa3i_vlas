@@ -38,7 +38,7 @@ CELERY_ROUTES = {
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_BACKEND = 'rpc://'
+CELERY_RESULT_BACKEND = 'django-db' # ALMACÉN SÓLIDO EN DB
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -55,7 +55,7 @@ SITE_URL = os.getenv('SITE_URL', 'http://127.0.0.1:8000')
 
 ALLOWED_HOSTS = ['*']
 
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173', 
@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_celery_results',
     # Custom apps
     'api.apps.ApiConfig',
     'models.apps.ModelsConfig',

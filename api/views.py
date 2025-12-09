@@ -1,7 +1,7 @@
 import evaluate, re
 from weasyprint import HTML
 from .tasks import process_audio_task, cancel_group_tasks, validate_conversation_task
-from models.models import TranscriptionGroup, AudioTranscription, SpeechSegment
+from api.models import TranscriptionGroup, AudioTranscription, SpeechSegment
 from .serializers import TranscriptionGroupSerializer, AudioTranscriptionSerializer
 from pathlib import Path
 from django.utils import timezone
@@ -221,12 +221,14 @@ def create_transcription_group(request):
             return Response(group_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     except Exception as e:
-        print(e)
+        import traceback
+        traceback.print_exc()
+        print(f"CRITICAL ERROR in create_transcription_group: {str(e)}", flush=True)
         if 'group' in locals():
             for created_audio in created_audios:
                 created_audio.delete()
             group.delete()
-        return Response({"error": "Error al procesar la solicitud"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  
+        return Response({"error": f"Error al procesar la solicitud: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  
 
 
 @api_view(['DELETE'])
@@ -863,5 +865,75 @@ def get_wer_global(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     global_wer = wer_metric.compute(predictions=hypotheses, references=references)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def initialize_system(request):
+    """
+    Inicia la carga de modelos en background.
+    """
+    from .tasks import initialize_backend_models
+    task = initialize_backend_models.delay()
+    return Response({"task_id": task.id, "status": "initializing"}, status=status.HTTP_202_ACCEPTED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_system_status(request):
+    """
+    Consulta el estado de una tarea de inicialización (si se pasa task_id)
+    o consulta el estado real de los modelos en memoria.
+    """
+    task_id = request.query_params.get('task_id')
+    
+    # 1. Chequeo de estado real en este worker (u otro si fuera cluster, pero aquí asumimos monorail/celery check)
+    # NOTA: Como la vista corre en Django y los modelos en Celery,
+    # este chequeo local (is_model_loaded) siempre dará False en el contenedor Django.
+    # Por tanto, dependemos de que el frontend nos pase el task_id de inicialización
+    # O que implementemos un chequeo remoto a Celery.
+    
+    # ESTRATEGIA: Si no hay task_id, asumimos 'idle' pero el frontend debería 
+    # haber guardado el task_id anterior.
+    # Si queremos ser robustos sin task_id, tendríamos que consultar Redis o similar.
+    # Por ahora, mantendremos la lógica de task_id pero mejoramos el mensaje default.
+    
+    if not task_id:
+        # Si no hay task_id, hacemos un "ping" real al worker para ver si ya tiene el modelo.
+        # Esto evita el estado 'Gris' si se refresca la página.
+        # Lanzamos una subtarea rápida y esperamos el resultado (bloqueante breve o async rápido)
+        # Ojo: Esperar en una vista no es ideal, pero para un check de estado vale.
+        try:
+            from .tasks import check_backend_status
+            # apply() ejecuta en local si CELERY_ALWAYS_EAGER, pero aquí necesitamos que el worker responda.
+            # usamos apply_async y esperamos un poco.
+            check_job = check_backend_status.apply_async()
+            # Esperamos máx 1s
+            is_loaded = check_job.get(timeout=1.0)
+            
+            if is_loaded:
+                return Response({"status": "ready", "message": "Pre-warm check: OK"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"status": "idle", "message": "Modelos fríos."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            # Si falla la conexión con rabbit o timeout
+             return Response({"status": "idle", "message": "Esperando inicialización..."}, status=status.HTTP_200_OK)
+
+    # Usamos la instancia de app explícita para asegurar que carga el backend (django-db)
+    from transcriptionAPI.celery import app as celery_app
+    result = celery_app.AsyncResult(task_id)
+    
+    if result.ready():
+        if result.successful():
+            return Response({"status": "ready", "message": "Sistemas IA Operativos."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"status": "error", "error": str(result.result)}, status=status.HTTP_200_OK)
+    elif result.state == 'PROGRESS':
+        return Response({
+            "status": "loading", 
+            "message": result.info.get('message', 'Cargando...') if isinstance(result.info, dict) else 'Cargando...'
+        }, status=status.HTTP_200_OK)
+    else:
+        # Si el estado es PENDING u otro desconocido, asumimos que el ID es inválido (stale)
+        # o que la tarea se perdió. Devolvemos un estado !='loading' para forzar al frontend
+        # a reiniciar el proceso (ver system.ts en el frontend).
+        return Response({"status": "stale", "message": "Reiniciando conexión IA..."}, status=status.HTTP_200_OK)
 
     return Response({'global_average_wer': global_wer}, status=status.HTTP_200_OK)

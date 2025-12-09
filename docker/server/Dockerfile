@@ -47,6 +47,10 @@ RUN mkdir -p /app/api/media && chown -R appuser:appuser /app/api/media
 ENV HF_HOME=/app/.cache/huggingface
 ENV NUMBA_CACHE_DIR=/tmp/numba_cache
 
+# Configuración CRÍTICA para que CTranslate2/Faster-Whisper encuentre las librerías NVIDIA
+# Buscamos dinámicamente o hardcodeamos las rutas estándar de pip install nvidia-*
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:$LD_LIBRARY_PATH
+
 # Cambiar a usuario no root
 USER appuser
 

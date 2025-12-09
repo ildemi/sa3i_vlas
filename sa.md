@@ -1,43 +1,53 @@
-# Situational Awareness (SA) - VLAS v2.0 Project
+# Situational Awareness (SA) - VLAS v2.2 Project
 
 ## 1. Project Overview
-**VLAS (Voice Legal Analysis System)** is a commercial-grade application designed to:
-1.  **Transcribe** Air Traffic Control (ATC) communications using `faster-whisper`.
-2.  **Analyze** adherence to phraseology regulations (SERA, RCA) using LLMs (Gemini 1.5 Pro).
-3.  **Evaluate** controller performance on a 0-5 scale.
+**VLAS (Voice Legal Analysis System)** is a commercial-grade application designed for **Hybrid ATC Environments** (Spanish/English).
+**Core Mission:**
+1.  **Transcribe** mixed ATC communications using specialized models (`faster-whisper` + `large-v3-atco2`).
+2.  **Normalize** output using a multi-layer strategy (Context Priming -> Deterministic Regex -> LLM Semantic Correction).
+3.  **Analyze** adherence to SERA/RCA regulations using LLMs.
+4.  **Train** custom models (Fine-tuning) via a "Human-in-the-loop" data engine.
 
 ## 2. System Architecture
 *   **Root Path:** `c:\Users\esdei\sa3i_vlas`
-*   **Backend (`/api`):** Python/Django.
-    *   **ASR:** `faster-whisper` (Model: `large-v3` optimized).
-    *   **Logic:** `transcriber` app for audio processing, `validator` app for LLM analysis.
+*   **Backend (`/api`):** Python/Django + Celery + RabbitMQ.
+    *   **ASR Engine:** `faster-whisper` (CTranslate2 backend, `float16` quantization) for 4x speed.
+    *   **Logic:** `transcriber` (Audio processing), `validator` (LLM analysis).
+    *   **Normalization:** Database-backed deterministic rules + Whisper Prompting.
 *   **Frontend (`/web`):** React + Vite + TypeScript.
-*   **Infrastructure:** Dockerized deployment (see `/docker` folder).
+*   **AI/LLM:**
+    *   **Transcription:** `whisper-large-v3-atco2-asr`.
+    *   **Validation:** Local Ollama (Phi-4) or Cloud Gemini 1.5 Pro.
+*   **Infrastructure:** Dockerized Microservices (`vm_vlas` network).
 
-## 3. Current Status (2025-12-07)
-**Phase:** Technical Debt Cleanup & Git Synchronization.
+## 3. Current Status (2025-12-09)
+**Phase:** Normalization Engine COMPLETE.
 
-### Completed Actions
-*   **Normalization Refactor:** Successfully decoupled data from logic in `normalize.py`. Created `Airline` and `TranscriptionCorrection` models.
-*   **Data Migration:** Prepared `seed_normalization` command to migrate legacy dictionaries to the database.
-*   **Docker Optimization:** Added `.dockerignore` and updated build process (currently finalizing).
+### Recent Victories
+1.  **Project Structure:** Cleaned up `api` vs `models` app conflict. Now `api` is the single source of truth.
+2.  **Normalization Seeding:** Successfully moved legacy regex rules + NATO alphabet into PostgreSQL.
+3.  **Layer 2 Implementation:** Refactored `normalize.py` to load rules dynamically from DB.
+4.  **Verification:** Validated that "uno" -> "1" works via Django Shell.
 
-### Active Issues
-*   **Git Synchronization:** Local folder `sa3i_vlas` needs to be reconciled with the remote GitHub repository `vlas_m` (previously pushed from a temporary directory).
+### Critical Blockers
+*   None.
 
-## 4. Immediate Action Plan (To-Do)
-1.  [ ] **Finalize Docker Build:** Waiting for the heavy `faster-whisper` image build to complete.
-2.  [ ] **Run Migrations & Seed:** Execute `makemigrations`, `migrate`, and `seed_normalization`.
-3.  [ ] **Fix Git Remote:**
-    *   Initialize/Check git in `c:\Users\esdei\sa3i_vlas`.
-    *   Set remote to `vlas_m` repo.
-    *   Force push or pull/rebase to sync history.
-    *   Clean up `filterAndNormalize` pipeline.
-2.  [ ] **Verify Docker Environment:** Ensure `docker-compose.yml` builds the specific VLAS v2.0 stack correctly.
-3.  [ ] **RAG Integration:** Process PDFs in `/sources` for the Validation Agent.
+### Next Steps
+1.  **Add Missing Rules:** Some legacy dictionaries were incomplete (e.g. "Victoria" -> "Victor" was missing). We need a way to add rules easily (Admin Panel?).
+2.  **Layer 1 (Prompting):** Verify `initial_prompt` in `transcriber.py`.
+3.  **Frontend Integration:** Ensure frontend displays the corrected text.
 
-## 5. Recovery Instructions (If Session Resets)
-If you "wake up" and this is the first file you read:
-1.  Verify you are in `c:\Users\esdei\sa3i_vlas`.
-2.  Check if `api/transcriber/normalize.py` has been cleaned (file size should be < 5KB, currently ~22KB).
-3.  Resume the "Immediate Action Plan" from the top unchecked item.
+## 4. IMMEDIATE ACTION PLAN
+**Done.** The Normalization Engine is active.
+Any new transcription will query the DB for rules.
+
+To add new rules:
+Use Django Admin (`/admin`) to add `TranscriptionCorrection` entries.
+
+
+If Docker/Ports fail or session resets:
+1.  **Start Docker Desktop** & wait for green light.
+2.  `cd c:\Users\esdei\sa3i_vlas`
+3.  `docker compose -f docker/docker-compose.yml --env-file .env up -d`
+4.  **Check migrations:** `docker exec vlas-django-1 python manage.py migrate`
+5.  **Green Status:** Check `http://localhost:8080` -> IA Status.

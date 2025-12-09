@@ -94,7 +94,7 @@ services:
     image: saerco/vlas-server:0.1.0
     entrypoint: ["/app/docker/entrypoint-celery.sh"]
     working_dir: /app
-    command: bash -c "export PYTHONPATH=/app && celery -A transcriptionAPI.celery worker --loglevel=info --pool=threads"
+    command: celery -A transcriptionAPI worker -l info --pool=solo
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,6 +140,8 @@ services:
     build:
       context: ..
       dockerfile: docker/client/Dockerfile
+      args:
+        VITE_DJANGO_URL: ${VITE_DJANGO_URL}
     ports:
       - "8080:80"
     restart: unless-stopped

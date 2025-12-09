@@ -5,7 +5,7 @@ import os
 
 from .transcriber.transcriber import transcriber_instance
 from .validator.validation import Validator
-from models.models import AudioTranscription, TranscriptionGroup, SpeechSegment
+from api.models import AudioTranscription, TranscriptionGroup, SpeechSegment
 import logging
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ def cancel_group_tasks(group_id):
     para un grupo específico.
     """
     try:
-        from models.models import TranscriptionGroup
+        from api.models import TranscriptionGroup
         group = TranscriptionGroup.objects.get(id=group_id)
 
         # Para mayor consistencia, puedes usar transacción
@@ -252,6 +252,12 @@ def retry_audio_process_task(audio_id):
             audio = AudioTranscription.objects.select_for_update().get(id=audio_id)
             
             for idx, seg in enumerate(diarized_segments, start=1):
+                # FILTRO DE RUIDO: Ignorar segmentos menores a 0.5 segundos
+                duration = seg['end_time'] - seg['start_time']
+                if duration < 0.5:
+                    logger.info(f"Skipping short segment duration={duration:.2f}s")
+                    continue
+
                 abs_path = Path(seg['path'])
                 
                 # Intentar calcular ruta relativa a MEDIA_ROOT para guardar en BD
@@ -301,3 +307,72 @@ def retry_audio_process_task(audio_id):
         except:
             pass
         raise e
+@shared_task(bind=True)
+def initialize_backend_models(self):
+    """
+    Tarea para inicializar modelos secuencialmente reportando progreso.
+    """
+    try:
+        import time
+        logger.info("Starting granular model initialization...")
+        
+        # 1. Whisper
+        from .transcriber.transcriber import get_transcriber_instance, is_model_loaded
+        
+        if is_model_loaded():
+             logger.info("Whisper already loaded. Skipping.")
+             self.update_state(state='PROGRESS', meta={'message': 'Whisper ya está listo...'})
+        else:
+            logger.info("Updating state to PROGRESS: Whisper...")
+            self.update_state(state='PROGRESS', meta={'message': 'Inicializando Whisper (Transcripción)...'})
+            import time
+            time.sleep(1) # Pequeña pausa para asegurar que el frontend pille el mensaje
+            # Usamos get_transcriber_instance() directamente para saltarnos el Proxy limitado
+            # y forzar la inicialización real de la clase TranscriptionAgent
+            real_instance = get_transcriber_instance()
+            # Acceder a .model aquí sí funcionará porque real_instance es el TranscriptionAgent real
+            _ = real_instance.model 
+            logger.info("Whisper loaded.")
+
+        # 2. Pyannote (Diarización)
+        logger.info("Updating state to PROGRESS: Pyannote...")
+        self.update_state(state='PROGRESS', meta={'message': 'Inicializando Pyannote (Identificación de Hablantes)...'})
+        time.sleep(1)
+        from api.diarizer import AudioDiarization
+        # Instanciar carga el pipeline si se hace en __init__
+        _ = AudioDiarization()
+        logger.info("Pyannote loaded.")
+
+        # 3. Ollama (Validación)
+        logger.info("Updating state to PROGRESS: Ollama...")
+        self.update_state(state='PROGRESS', meta={'message': 'Conectando con Ollama (Validación Legal)...'})
+        time.sleep(1)
+        try:
+            from ollama import Client
+            from django.conf import settings
+            # Construir URL base correctamente
+            ollama_url = getattr(settings, 'OLLAMA_BASE_URL', 'http://ollama:11434')
+            client = Client(host=ollama_url)
+            # Listar para verificar conexión y calentar
+            client.list()
+            logger.info("Ollama connected.")
+        except Exception as e_ollama:
+            logger.warning(f"Ollama warning (non-blocking): {e_ollama}")
+
+        return {"status": "ready", "details": "Todos los motores inicializados."}
+
+    except Exception as e:
+        logger.error(f"Error initializing models: {e}")
+        return {"status": "error", "details": str(e)}
+
+@shared_task
+def check_backend_status():
+    """
+    Tarea síncrona/rápida para comprobar si los singletons están en memoria.
+    Devuelve True si Whisper está cargado en el worker.
+    """
+    try:
+        from .transcriber.transcriber import is_model_loaded
+        return is_model_loaded()
+    except:
+        return False

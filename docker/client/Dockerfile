@@ -9,10 +9,9 @@ RUN npm install
 COPY web/ .
 
 # 3) >>> INYECTA LA VARIABLE AL BUILD <<<
-# ARG VITE_DJANGO_URL
-# ENV VITE_DJANGO_URL=${VITE_DJANGO_URL}
-# Forzamos que Vite la vea en tiempo de build:
-# RUN VITE_DJANGO_URL=${VITE_DJANGO_URL} 
+ARG VITE_DJANGO_URL
+ENV VITE_DJANGO_URL=${VITE_DJANGO_URL}
+
 RUN npm run build
 
 # Etapa 2: Nginx
